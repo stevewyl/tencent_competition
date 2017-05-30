@@ -250,29 +250,49 @@ df_test = df_test.fillna(df_test.mean())
 classification model RF
 主要流程：1.标准化，2.随机森林模型，树个数为20 3.计算混淆矩阵 4.10折交叉验证
 '''
+# 官方分数计算
+def eval_score(confusion_matrix):
+	precision = confusion_matrix[0][0] / (confusion_matrix[0][0] + confusion_matrix[1][0])
+	recall = confusion_matrix[0][0] / (confusion_matrix[0][0] + confusion_matrix[0][1])
+	f_score = 5 * precision * recall / (2 * precision + 3 * recall) * 100
+	return f_score
+
 x_train, x_test, y_train, y_test = train_test_split(df_train, labels, test_size=0.2, random_state=42)
 print("Train/Test split: {:d}/{:d}".format(len(y_train), len(y_test)))
+
 sc = StandardScaler()
 x_train = sc.fit_transform(x_train)
 x_test = sc.transform(x_test)
-clf = RandomForestClassifier(n_estimators=20)
-clf.fit(x_train, y_train)
-y_pred = clf.predict(x_test)
 y_test = np.array(y_test)
-print('RF correct prediction: {:4.4f}'.format(np.mean(y_pred == y_test)))
-print('\n')
-print(metrics.classification_report(y_test, y_pred, target_names=['0','1']))
-print('\n')
-print("Confusion Matrix:")
-confusion_matrix = metrics.confusion_matrix(y_test, y_pred)
-precision = confusion_matrix[0][0] / (confusion_matrix[0][0] + confusion_matrix[1][0])
-recall = confusion_matrix[0][0] / (confusion_matrix[0][0] + confusion_matrix[0][1])
-f_score = 5 * precision * recall / (2 * precision + 3 * recall) * 100
-print(confusion_matrix)
-print('\n')
+
 clf_rf = make_pipeline(StandardScaler(), RandomForestClassifier(n_estimators=20))
+clf_grd = make_pipeline(StandardScaler(), GradientBoostingClassifier(n_estimators=20))
+
+clf_rf.fit(x_train, y_train)
+y_pred_rf = clf_rf.predict(x_test)
+print('RF correct prediction: {:4.4f}'.format(np.mean(y_pred_rf == y_test)))
+print(metrics.classification_report(y_test, y_pred_rf, target_names=['0','1']))
+confusion_matrix_rf = metrics.confusion_matrix(y_test, y_pred_rf)
+print("Confusion Matrix:")
+print(confusion_matrix_rf)
+
+clf_grd.fit(x_train, y_train)
+y_pred_grd = clf_grd.predict(x_test)
+print('GRD correct prediction: {:4.4f}'.format(np.mean(y_pred_grd == y_test)))
+print(metrics.classification_report(y_test, y_pred_grd, target_names=['0','1']))
+confusion_matrix_grd = metrics.confusion_matrix(y_test, y_pred_grd)
+print("Confusion Matrix:")
+print(confusion_matrix_grd)
+
+# 10-折交叉验证
 rf_10_fold = cross_val_score(clf_rf, df_train, labels, cv=10)
 print('RF 10-fold score: {:4.4f}'.format(np.mean(rf_10_fold)))
+grd_10_fold = cross_val_score(clf_grd, df_train, labels, cv=10)
+print('GRD 10-fold score: {:4.4f}'.format(np.mean(grd_10_fold)))
+
+f_score_rf = eval_score(confusion_matrix_rf)
+f_score_grd = eval_score(confusion_matrix_grd)
+print(f_score_rf, f_score_grd)
 # 将3000个样本都用于建模，对10W个样本做预测，并生成能够提交的文档
 clf_rf.fit(df_train, labels)  
 predict = clf_rf.predict(df_test)
