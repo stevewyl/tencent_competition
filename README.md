@@ -45,6 +45,9 @@ Data and py scripts for tencent compettion
 15. num_keep_time: x和y坐标保持不变的状态的次数
 16. ratio_time_x: x坐标保持不变的状态的时间占比
 17. ratio_time_y: y坐标保持不变的状态的时间占比
+18. num_movements: 每个样本的移动次数
+19. taaget_x: 目标坐标的x值
+20. taaget_y: 目标坐标的y值
 
 ## 未加入的特征
 1. 拐点次数
