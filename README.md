@@ -3,6 +3,7 @@ Data and py scripts for tencent compettion
 
 ## 运行说明
 切换至data文件夹，在命令行中输入 python model.py
+运行所需的包：bokeh, sklearn
 
 ## 数据说明
 训练数据表名称：dsjtzs_txfz_training
