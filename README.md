@@ -2,8 +2,9 @@
 Data and py scripts for tencent compettion
 
 ## 运行说明
-切换至data文件夹，在命令行中输入 python model.py
-运行所需的包：bokeh, sklearn
++ 切换至代码所在文件，在命令行中输入 python model.py
++ xgboost目前只在python2上成功运行，所以得在python2的环境下运行
++ 运行所需的包：bokeh, sklearn
 
 ## 数据说明
 训练数据表名称：dsjtzs_txfz_training
@@ -58,6 +59,7 @@ Data and py scripts for tencent compettion
 ## 下一步工作
 1. 新的特征提取
 2. 模型融合
+3. 将数据清理和特征提取与模型代码分开 ---> data_helper.py
 
 ## 网友的疑问
 1. 目标坐标是指最后一步点击确定的坐标吗？
