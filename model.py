@@ -4,16 +4,16 @@
 # 问题1 不太能理解目标坐标的含义，与移动轨迹的坐标差距较大
 # 问题2 存在时间t不变的情况，即瞬移的点，暂时将时间间隔从0改为1
 
-import os
+import os 
 
 import pandas as pd
 import numpy as np
-
+'''
 from bokeh.plotting import figure
 from bokeh.io import show, output_file
 from bokeh.layouts import gridplot
 from bokeh.models import HoverTool
-
+'''
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn import metrics
@@ -103,7 +103,9 @@ def cal_keep(diff):
 			v = list(set(v))
 			keep.append(v)
 			v = []
-		if i == len(index) - 2:
+		if i == len(index) - 1:
+			v.append(index[i])
+			v = list(set(v))
 			keep.append(v)
 	keep_num = len(keep)
 	return keep_num, keep
@@ -112,16 +114,20 @@ def cal_keep(diff):
 计算保持x,y坐标不变的状态的时间占比
 '''
 def cal_keep_time(t, keep, total_time):
-	begin_end = [[k[0],k[-1]] for k in keep]
-	begin_end = [list(set(k)) for k in begin_end]
-	time = 0
-	if total_time == 0: total_time = 1
-	for item in begin_end:
-		if len(item) != 1: 
-			time += t[item[1]+1] - t[item[0]]
-		else:
-			time += t[item[0]+1] - t[item[0]]
-	ratio = time / total_time
+	#print(total_time)
+	if len(keep) != 0:
+		begin_end = [[k[0],k[-1]] for k in keep]
+		begin_end = [list(set(k)) for k in begin_end]
+		time = 0
+		if total_time == 0: total_time = 1
+		for item in begin_end:
+			if len(item) != 1: 
+				time += t[item[1]+1] - t[item[0]]
+			else:
+				time += t[item[0]+1] - t[item[0]]
+		ratio = time / total_time
+	else:
+		ratio = 0.0
 	return ratio
 
 '''
@@ -184,7 +190,7 @@ def get_fetures(df, track):
 		diff_t = [t if t != 0 else 1 for t in diff_t]
 
 		# 计算x和y坐标保持不变的状态时间占比和次数
-		keep_num_x, keep_x = cal_keep(diff_y)
+		keep_num_x, keep_x = cal_keep(diff_x)
 		keep_num_y, keep_y = cal_keep(diff_y)
 		keep_num = keep_num_x + keep_num_y
 		ratio_keep_time_x = cal_keep_time(v['t'], keep_x, total_time)
@@ -232,8 +238,8 @@ def get_fetures(df, track):
 	df.loc[:,'total_distance'] = total_distance
 	df.loc[:,'acceleration'] = acceleration
 	df.loc[:,'keep_sums'] = keep_nums
-	df.loc[:,'ratio_time_x'] = ratio_keep_time_x
-	df.loc[:,'ratio_time_y'] = ratio_keep_time_y
+	df.loc[:,'ratio_time_x'] = ratio_time_x
+	df.loc[:,'ratio_time_y'] = ratio_time_y
 	del df['movement']
 	del df['target']
 
@@ -242,13 +248,13 @@ def get_fetures(df, track):
 df_train, labels = read_data(train)
 df_train, track_train, movements_train = data_reshape(df_train)
 df_train = get_fetures(df_train, track_train)
-'''
+
 df_test, id_list = read_data(test)
 df_test, track_test, movements_test = data_reshape(df_test)
 df_test = get_fetures(df_test, track_test)
-'''
+
 df_train = df_train.fillna(df_train.mean())
-#df_test = df_test.fillna(df_test.mean())
+df_test = df_test.fillna(df_test.mean())
 
 df_train.to_csv('./data/train_data.csv')
 labels.to_csv('./data/train_labels.csv')
@@ -318,16 +324,17 @@ score_rf = score_cal(df_train, labels, clf_rf)
 score_grd = score_cal(df_train, labels, clf_grd)
 print(score_rf, score_grd)
 
-'''
+
 # 将3000个样本都用于建模，对10W个样本做预测，并生成能够提交的文档
 clf_rf.fit(df_train, labels)  
 predict = clf_rf.predict(df_test)
 result = pd.DataFrame(id_list)
 result.loc[:,'predict'] = predict
 submit = result.loc[result['predict'] == 0]
-filename = '../result/BDC0564_' + str(datetime.now()).split(' ')[0].replace('-','') + '.txt'
+filepath = os.getcwd() + '/result/'
+filename = filepath + 'BDC0564_' + str(datetime.now()).split(' ')[0].replace('-','') + '.txt'
 submit['id'].to_csv(filename, header=None, index = False)
-'''
+
 
 '''
 # num of label 1: 2600
@@ -343,8 +350,8 @@ print(np.mean(t_mean[2600:]))         # label0：4976.5
 '''
 
 '''
-plot the movements
-'''
+# plot the movements
+
 def plot_movements(movements):
 	pic = []
 	label1 = np.arange(0,20,1)
@@ -355,17 +362,18 @@ def plot_movements(movements):
 		y = [point.split(',')[1] for point in movement[:-1]]
 		p = figure(title = "Sample " + str(i+1) + " movements")
 		p.line(x, y, line_width = 2)
-		p.circle(x, y, fill_color = 'white', size = 10)
-		'''
+		# p.circle(x, y, fill_color = 'white', size = 10)
+		
 		p.circle(x, y, size=10,
 			fill_color='grey', alpha=0.2, line_color=None,
 			hover_fill_color='firebrick', hover_alpha=0.5,
 			hover_line_color='white')
 		hover = HoverTool(tooltips = None, mode = 'vline')
 		p.add_tools(hover)
-		'''
+
 		#output_file(str(i) + '.html')
 		pic.append(p)
 	grid = gridplot(pic, ncols=7)
 	show(grid)
 #plot_movements(movements)
+'''
