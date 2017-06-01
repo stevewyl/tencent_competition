@@ -59,6 +59,7 @@ Data and py scripts for tencent compettion
 ## 下一步工作
 1. 新的特征提取
 2. 模型融合
+3. 将数据清理和特征提取与模型代码分开 ---> data_helper.py
 
 ## 网友的疑问
 1. 目标坐标是指最后一步点击确定的坐标吗？
