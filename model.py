@@ -25,8 +25,8 @@ from datetime import datetime
 read data
 第一列为ID号，第二列为移动轨迹(x,y,t)，第三列为目标坐标，第四列为标签
 '''
-test = 'dsjtzs_txfz_test1.txt'
-train = 'dsjtzs_txfz_training.txt'
+test = './data/dsjtzs_txfz_test1.txt'
+train = './data/dsjtzs_txfz_training.txt'
 
 def read_data(file):
 	df = pd.read_csv(file, sep=' ', header = None)
