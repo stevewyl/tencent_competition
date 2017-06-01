@@ -4,6 +4,8 @@
 # 问题1 不太能理解目标坐标的含义，与移动轨迹的坐标差距较大
 # 问题2 存在时间t不变的情况，即瞬移的点，暂时将时间间隔从0改为1
 
+import os
+
 import pandas as pd
 import numpy as np
 
@@ -16,8 +18,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn import metrics
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import make_pipeline
+from sklearn.cross_validation import KFold 
 
 from datetime import datetime
 
@@ -25,8 +29,8 @@ from datetime import datetime
 read data
 第一列为ID号，第二列为移动轨迹(x,y,t)，第三列为目标坐标，第四列为标签
 '''
-test = 'dsjtzs_txfz_test1.txt'
-train = 'dsjtzs_txfz_training.txt'
+test = './data/dsjtzs_txfz_test1.txt'
+train = './data/dsjtzs_txfz_training.txt'
 
 def read_data(file):
 	df = pd.read_csv(file, sep=' ', header = None)
@@ -238,23 +242,26 @@ def get_fetures(df, track):
 df_train, labels = read_data(train)
 df_train, track_train, movements_train = data_reshape(df_train)
 df_train = get_fetures(df_train, track_train)
-
+'''
 df_test, id_list = read_data(test)
 df_test, track_test, movements_test = data_reshape(df_test)
 df_test = get_fetures(df_test, track_test)
-
+'''
 df_train = df_train.fillna(df_train.mean())
-df_test = df_test.fillna(df_test.mean())
+#df_test = df_test.fillna(df_test.mean())
+
+df_train.to_csv('./data/train_data.csv')
+labels.to_csv('./data/train_labels.csv')
 
 '''
-classification model RF
-主要流程：1.标准化，2.随机森林模型，树个数为20 3.计算混淆矩阵 4.10折交叉验证
+classification model RF and GBDT
+主要流程：1.标准化，2.模型构建，树个数为20 3.计算混淆矩阵 4.10折交叉验证
 '''
 # 官方分数计算
 def eval_score(confusion_matrix):
-	precision = confusion_matrix[0][0] / (confusion_matrix[0][0] + confusion_matrix[1][0])
-	recall = confusion_matrix[0][0] / (confusion_matrix[0][0] + confusion_matrix[0][1])
-	f_score = 5 * precision * recall / (2 * precision + 3 * recall) * 100
+	precision = float(confusion_matrix[0][0]) / (confusion_matrix[0][0] + confusion_matrix[1][0])
+	recall = float(confusion_matrix[0][0]) / (confusion_matrix[0][0] + confusion_matrix[0][1])
+	f_score = float(5 * precision * recall) / (2 * precision + 3 * recall) * 100
 	return f_score
 
 x_train, x_test, y_train, y_test = train_test_split(df_train, labels, test_size=0.2, random_state=42)
@@ -265,8 +272,8 @@ x_train = sc.fit_transform(x_train)
 x_test = sc.transform(x_test)
 y_test = np.array(y_test)
 
-clf_rf = make_pipeline(StandardScaler(), RandomForestClassifier(n_estimators=20))
-clf_grd = make_pipeline(StandardScaler(), GradientBoostingClassifier(n_estimators=20))
+clf_rf = make_pipeline(StandardScaler(), RandomForestClassifier(n_estimators=20,random_state = 0))
+clf_grd = make_pipeline(StandardScaler(), GradientBoostingClassifier(n_estimators=20,random_state=0))
 
 clf_rf.fit(x_train, y_train)
 y_pred_rf = clf_rf.predict(x_test)
@@ -285,14 +292,33 @@ print("Confusion Matrix:")
 print(confusion_matrix_grd)
 
 # 10-折交叉验证
-rf_10_fold = cross_val_score(clf_rf, df_train, labels, cv=10)
+rf_10_fold = cross_val_score(clf_rf, df_train, labels, cv=10, scoring='f1')
 print('RF 10-fold score: {:4.4f}'.format(np.mean(rf_10_fold)))
-grd_10_fold = cross_val_score(clf_grd, df_train, labels, cv=10)
+grd_10_fold = cross_val_score(clf_grd, df_train, labels, cv=10, scoring='f1')
 print('GRD 10-fold score: {:4.4f}'.format(np.mean(grd_10_fold)))
 
-f_score_rf = eval_score(confusion_matrix_rf)
-f_score_grd = eval_score(confusion_matrix_grd)
-print(f_score_rf, f_score_grd)
+# 使用新的评价函数进行交叉验证
+def score_cal(df, labels, model, n_folds = 10):
+    kf = KFold(df.shape[0], n_folds, shuffle = True)
+    scores = []
+    for train, test in kf:
+        x_train = df_train.loc[train,:]
+        x_test = df_train.loc[test,:]
+        y_train = np.array(labels[train]).ravel()
+        y_test = np.array(labels[test]).ravel()
+        model.fit(x_train, y_train)
+        y_pred= model.predict(x_test)
+        confusion_matrix = metrics.confusion_matrix(y_test, y_pred)
+        f_score_xgb = eval_score(confusion_matrix)
+        scores.append(f_score_xgb)
+    final_score = np.mean(scores)
+    return final_score
+
+score_rf = score_cal(df_train, labels, clf_rf)
+score_grd = score_cal(df_train, labels, clf_grd)
+print(score_rf, score_grd)
+
+'''
 # 将3000个样本都用于建模，对10W个样本做预测，并生成能够提交的文档
 clf_rf.fit(df_train, labels)  
 predict = clf_rf.predict(df_test)
@@ -301,7 +327,7 @@ result.loc[:,'predict'] = predict
 submit = result.loc[result['predict'] == 0]
 filename = '../result/BDC0564_' + str(datetime.now()).split(' ')[0].replace('-','') + '.txt'
 submit['id'].to_csv(filename, header=None, index = False)
-
+'''
 
 '''
 # num of label 1: 2600
