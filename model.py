@@ -3,11 +3,11 @@
 # 可能的特征：停留时间的长短，每次位移距离，移动次数，移动轨迹形状（机器的应该比较有规律），相同时间间隔内的轨迹变化
 # 问题1 不太能理解目标坐标的含义，与移动轨迹的坐标差距较大
 # 问题2 存在时间t不变的情况，即瞬移的点，暂时将时间间隔从0改为1
-
-import os 
-
+# 异常数据点492, 882, 1136, 1153，1443, 1641, 1722, 1877, 2067, 2198, 2509, 
+import os
 import pandas as pd
 import numpy as np
+
 '''
 from bokeh.plotting import figure
 from bokeh.io import show, output_file
@@ -22,15 +22,19 @@ from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import make_pipeline
 from sklearn.cross_validation import KFold 
+from sklearn.model_selection import RandomizedSearchCV
+
+from scipy.stats import randint as sp_randint
 
 from datetime import datetime
+from time import time
 
 '''
 read data
 第一列为ID号，第二列为移动轨迹(x,y,t)，第三列为目标坐标，第四列为标签
 '''
-test = './data/dsjtzs_txfz_test1.txt'
-train = './data/dsjtzs_txfz_training.txt'
+testfile = './data/dsjtzs_txfz_test1.txt'
+trainfile = './data/dsjtzs_txfz_training.txt'
 
 def read_data(file):
 	df = pd.read_csv(file, sep=' ', header = None)
@@ -114,18 +118,13 @@ def cal_keep(diff):
 计算保持x,y坐标不变的状态的时间占比
 '''
 def cal_keep_time(t, keep, total_time):
-	#print(total_time)
+	tt = 0
 	if len(keep) != 0:
 		begin_end = [[k[0],k[-1]] for k in keep]
-		begin_end = [list(set(k)) for k in begin_end]
-		time = 0
 		if total_time == 0: total_time = 1
 		for item in begin_end:
-			if len(item) != 1: 
-				time += t[item[1]+1] - t[item[0]]
-			else:
-				time += t[item[0]+1] - t[item[0]]
-		ratio = time / total_time
+			tt += t[item[1]+1] - t[item[0]]
+		ratio = tt / total_time
 	else:
 		ratio = 0.0
 	return ratio
@@ -134,6 +133,8 @@ def cal_keep_time(t, keep, total_time):
 get features
 x_mean: x坐标的平均值
 y_mean: y坐标的平均值
+x_median: x坐标的中位数
+y_median: y坐标的中位数
 x_std: x坐标的标准差值
 y_std: y坐标的标准差值
 diff_mean_x: x坐标移动偏移量的平均值
@@ -149,10 +150,12 @@ acceleration: 加速度的平均值
 num_keep_time: x和y坐标保持不变的状态的次数
 ratio_time_x: x坐标保持不变的状态的时间占比
 ratio_time_y: y坐标保持不变的状态的时间占比
+ratio_ratio_x: 目标点x坐标附近的点占比
 '''
 def get_fetures(df, track):
 	# 生成一些空的列表，用于存放新的特征
 	x_mean, y_mean = [], []
+	x_median, y_median = [], []
 	x_std, y_std = [], []
 	diff_mean_x, diff_mean_y, diff_mean_t = [], [], []
 	v_x_mean, v_y_mean = [], []
@@ -163,19 +166,26 @@ def get_fetures(df, track):
 	acceleration = []
 	keep_nums = []
 	ratio_time_x, ratio_time_y = [], []
-
-	for k,v in track.items():
+	ratio_t_x = []
+	for _,v in track.items():
 		# 求和或取平均或去标准差作为该样本的特征值
-		x_mean.append(np.mean(v['x']))
-		y_mean.append(np.mean(v['y']))
-		x_std.append(np.std(v['x']))
-		y_std.append(np.std(v['y']))
-		total_time = v['t'][-1] - v['t'][0]
+		x = v['x']
+		y = v['y']
+		t = v['t']
+		x_mean.append(np.mean(x))
+		y_mean.append(np.mean(y))
+		x_median.append(np.median(x))
+		y_median.append(np.median(y))		
+		x_std.append(np.std(x))
+		y_std.append(np.std(y))
+		total_time = t[-1] - t[0]
 		duration.append(total_time) 
-		d.append(np.sqrt((v['x'][-1] - v['x'][0])**2 + (v['y'][-1] - v['y'][0])**2))
+		d.append(np.sqrt((x[-1] - x[0])**2 + (y[-1] - y[0])**2))
 
 		diff_x, diff_y, diff_t = [], [], []
 		slope = []
+		count_x = 0
+		
 		# 计算x,y,t的偏移量和斜率
 		for i in range(len(v['x'])-1):
 			x_diff = v['x'][i+1] - v['x'][i] #计算x坐标的位置偏移量
@@ -188,7 +198,15 @@ def get_fetures(df, track):
 			else:
 				slope.append(y_diff / x_diff)
 		diff_t = [t if t != 0 else 1 for t in diff_t]
-
+		
+		# 目标点x坐标附近的点的密度
+		'''    
+		for i in range(len(v['x'])):
+			if df.target_x[i]-150 < v['x'][i] < df.target_x[i]+150:
+				count_x += 1
+		density_target_x = count_x / df.num_movements[int(k-1)]
+		
+		'''
 		# 计算x和y坐标保持不变的状态时间占比和次数
 		keep_num_x, keep_x = cal_keep(diff_x)
 		keep_num_y, keep_y = cal_keep(diff_y)
@@ -221,11 +239,14 @@ def get_fetures(df, track):
 		slope_mean.append(np.mean(slope))
 		v_x_mean.append(np.mean(v_x))
 		v_y_mean.append(np.mean(v_y))
+		#ratio_t_x.append(density_target_x)
 
 	# 将不同特征值融合到一个dataframe中
 	df.loc[:,'duration'] = duration
 	df.loc[:,'x_mean'] = x_mean
 	df.loc[:,'y_mean'] = y_mean
+	df.loc[:,'x_median'] = x_median
+	df.loc[:,'y_median'] = y_median
 	df.loc[:,'x_std'] = x_std
 	df.loc[:,'y_std'] = y_std
 	df.loc[:,'diff_x'] = diff_mean_x
@@ -240,18 +261,21 @@ def get_fetures(df, track):
 	df.loc[:,'keep_sums'] = keep_nums
 	df.loc[:,'ratio_time_x'] = ratio_time_x
 	df.loc[:,'ratio_time_y'] = ratio_time_y
+	#df.loc[:,'ratio_density_x'] = ratio_t_x
 	del df['movement']
 	del df['target']
 
 	return df
 
-df_train, labels = read_data(train)
+df_train, labels = read_data(trainfile)
 df_train, track_train, movements_train = data_reshape(df_train)
 df_train = get_fetures(df_train, track_train)
 
-df_test, id_list = read_data(test)
+df_test, id_list = read_data(testfile)
 df_test, track_test, movements_test = data_reshape(df_test)
+print('load and reshape test data complete')
 df_test = get_fetures(df_test, track_test)
+print('generate new features for test data complete')
 
 df_train = df_train.fillna(df_train.mean())
 df_test = df_test.fillna(df_test.mean())
@@ -263,24 +287,48 @@ labels.to_csv('./data/train_labels.csv')
 classification model RF and GBDT
 主要流程：1.标准化，2.模型构建，树个数为20 3.计算混淆矩阵 4.10折交叉验证
 '''
-# 官方分数计算
-def eval_score(confusion_matrix):
-	precision = float(confusion_matrix[0][0]) / (confusion_matrix[0][0] + confusion_matrix[1][0])
-	recall = float(confusion_matrix[0][0]) / (confusion_matrix[0][0] + confusion_matrix[0][1])
-	f_score = float(5 * precision * recall) / (2 * precision + 3 * recall) * 100
-	return f_score
-
+labels = np.array(labels)
 x_train, x_test, y_train, y_test = train_test_split(df_train, labels, test_size=0.2, random_state=42)
 print("Train/Test split: {:d}/{:d}".format(len(y_train), len(y_test)))
 
-sc = StandardScaler()
-x_train = sc.fit_transform(x_train)
+sc = StandardScaler().fit(df_train)
+x_train = sc.transform(x_train)
 x_test = sc.transform(x_test)
+y_train = np.array(y_train)
 y_test = np.array(y_test)
+train = sc.transform(df_train)
+test = sc.transform(df_test)
 
-clf_rf = make_pipeline(StandardScaler(), RandomForestClassifier(n_estimators=20,random_state = 0))
-clf_grd = make_pipeline(StandardScaler(), GradientBoostingClassifier(n_estimators=20,random_state=0))
+clf_rf = RandomForestClassifier(n_estimators=20, random_state = 10, min_samples_leaf = 1, min_samples_split = 2)
+clf_grd = GradientBoostingClassifier(n_estimators=20, random_state = 10)
+'''
+param_grid = {"max_depth": [3, None],
+              "max_features": [1,2,3,4,5,6,7,8,9,10],
+              "min_samples_split": [2,3,4,5,6,7,8,9,10],
+              "min_samples_leaf": [1,2,3,4,5,6,7,8,9,10],
+              "bootstrap": True,
+              "criterion": "gini"}
+'''
 
+def report(results, n_top=3):
+    for i in range(1, n_top + 1):
+        candidates = np.flatnonzero(results['rank_test_score'] == i)
+        for candidate in candidates:
+            print("Model with rank: {0}".format(i))
+            print("Mean validation score: {0:.3f} (std: {1:.3f})".format(
+                  results['mean_test_score'][candidate],
+                  results['std_test_score'][candidate]))
+            print("Parameters: {0}".format(results['params'][candidate]))
+            print("")
+'''            
+n_iter_search = 20
+random_search = RandomizedSearchCV(clf_rf, param_distributions=param_grid)
+start = time()
+random_search.fit(train, labels)
+print("RandomizedSearchCV took %.2f seconds for %d candidates"
+      " parameter settings." % ((time() - start), n_iter_search))
+report(random_search.cv_results_)
+'''
 clf_rf.fit(x_train, y_train)
 y_pred_rf = clf_rf.predict(x_test)
 print('RF correct prediction: {:4.4f}'.format(np.mean(y_pred_rf == y_test)))
@@ -298,10 +346,17 @@ print("Confusion Matrix:")
 print(confusion_matrix_grd)
 
 # 10-折交叉验证
-rf_10_fold = cross_val_score(clf_rf, df_train, labels, cv=10, scoring='f1')
+rf_10_fold = cross_val_score(clf_rf, train, labels, cv=10, scoring='f1')
 print('RF 10-fold score: {:4.4f}'.format(np.mean(rf_10_fold)))
-grd_10_fold = cross_val_score(clf_grd, df_train, labels, cv=10, scoring='f1')
+grd_10_fold = cross_val_score(clf_grd, train, labels, cv=10, scoring='f1')
 print('GRD 10-fold score: {:4.4f}'.format(np.mean(grd_10_fold)))
+
+# 官方分数计算
+def eval_score(confusion_matrix):
+	precision = float(confusion_matrix[0][0]) / (confusion_matrix[0][0] + confusion_matrix[1][0])
+	recall = float(confusion_matrix[0][0]) / (confusion_matrix[0][0] + confusion_matrix[0][1])
+	f_score = float(5 * precision * recall) / (2 * precision + 3 * recall) * 100
+	return f_score
 
 # 使用新的评价函数进行交叉验证
 def score_cal(df, labels, model, n_folds = 10):
@@ -320,21 +375,21 @@ def score_cal(df, labels, model, n_folds = 10):
     final_score = np.mean(scores)
     return final_score
 
-score_rf = score_cal(df_train, labels, clf_rf)
-score_grd = score_cal(df_train, labels, clf_grd)
+score_rf = score_cal(train, labels, clf_rf)
+score_grd = score_cal(train, labels, clf_grd)
 print(score_rf, score_grd)
 
 
 # 将3000个样本都用于建模，对10W个样本做预测，并生成能够提交的文档
+
 clf_rf.fit(df_train, labels)  
-predict = clf_rf.predict(df_test)
+predict = clf_rf.predict(test)
 result = pd.DataFrame(id_list)
 result.loc[:,'predict'] = predict
 submit = result.loc[result['predict'] == 0]
 filepath = os.getcwd() + '/result/'
 filename = filepath + 'BDC0564_' + str(datetime.now()).split(' ')[0].replace('-','') + '.txt'
 submit['id'].to_csv(filename, header=None, index = False)
-
 
 '''
 # num of label 1: 2600
