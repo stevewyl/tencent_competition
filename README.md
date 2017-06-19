@@ -2,6 +2,9 @@
 Data and py scripts for tencent compettion
 
 ## 运行说明
++ model.py为6月2号的那个版本
++ 新增data_helper.py和model2.py，data_helper运行后可以得到提取完特征的训练集和测试集，model2仍旧是之前的模型
++ 新运行data_helper，再运行model2就可以得到结果，修改特征在data_helper中完成，修改模型在model文件中完成
 + 切换至代码所在文件，在命令行中输入 python model.py
 + xgboost目前只在python2上成功运行，所以得在python2的环境下运行
 + 运行所需的包：bokeh, sklearn
@@ -26,9 +29,10 @@ Data and py scripts for tencent compettion
 
 ## 目前的问题
 1. 不太能理解目标坐标的含义，与移动轨迹的坐标差距较大
-2. 存在时间t不变的情况，即瞬移的点，暂时将时间间隔从0改为1
+2. 存在时间t不变的情况，即瞬移的点，暂时将时间间隔从0改为1（已删除这些点）
 
 ## 已加入的特征
+update 6/1 分数73.4
 1. x_mean: x坐标的平均值
 2. y_mean: y坐标的平均值
 3. x_std: x坐标的标准差值
@@ -47,8 +51,28 @@ Data and py scripts for tencent compettion
 16. ratio_time_x: x坐标保持不变的状态的时间占比
 17. ratio_time_y: y坐标保持不变的状态的时间占比
 18. num_movements: 每个样本的移动次数
-19. taaget_x: 目标坐标的x值
-20. taaget_y: 目标坐标的y值
+19. target_x: 目标坐标的x值
+20. target_y: 目标坐标的y值
+
+update 6/19
+1. duration: 从开始移动到结束移动的持续时间
+2. keep_direction: 保持不变的状态的次数
+3. keep_time: 保持不变的状态的时间占比
+4. avg_v: 速度平均（每一段速度的平均）
+5. avg_speed: 速率平均（总位移/总时间）
+6. total_distance: 总的位移距离
+7. mean_dist: 每一段位移的平均
+8. mean_time: 每一段时间间隔的平均
+9. mean_acc: 加速度的平均
+10. mean_curve: 曲率的平均
+11. mean_dir: 与正北方向夹角的平均
+12. mean_head：转角的平均
+13. std_dist: 每一段位移的方差
+14. std_time: 每一段时间间隔的方差
+15. std_acc: 加速度的方差
+16. std_curve: 曲率的方差
+17. std_dir: 与正北方向夹角的方差
+18. std_head：转角的方差
 
 ## 未加入的特征
 1. 拐点次数
@@ -59,7 +83,7 @@ Data and py scripts for tencent compettion
 ## 下一步工作
 1. 新的特征提取
 2. 模型融合
-3. 将数据清理和特征提取与模型代码分开 ---> data_helper.py
+3. 将数据清理和特征提取与模型代码分开 ---> data_helper.py（已完成）
 
 ## 网友的疑问
 1. 目标坐标是指最后一步点击确定的坐标吗？
