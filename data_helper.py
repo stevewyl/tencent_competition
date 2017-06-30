@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from collections import Counter
+import pickle
 
 testfile = './data/dsjtzs_txfz_test1.txt'
 trainfile = './data/dsjtzs_txfz_training.txt'
@@ -33,7 +34,8 @@ def data_reshape(df):
 	df.loc[:,'target_x'] = target_x
 	df.loc[:,'target_y'] = target_y
 	df['target_x'] = pd.to_numeric(df['target_x'])
-	df['target_y'] = pd.to_numeric(df['target_y'])	
+	df['target_y'] = pd.to_numeric(df['target_y'])
+	del df['target']
 	track = {}
 	for index,m in enumerate(movements):
 		x, y, t = [], [], []
@@ -58,8 +60,9 @@ def dist(p1, p2):
 
 # 计算三点间的曲率
 def curve_rate(p1,p2,p3):
-	if dist(p1,p3) != 0:
-		return (dist(p1,p2) + dist(p2,p3)) / dist(p1,p3)
+	d = dist(p1,p3)
+	if d != 0:
+		return (dist(p1,p2) + dist(p2,p3)) / d
 	else:
 		return 1.0
     
@@ -137,6 +140,9 @@ def get_features(track):
 
 df_train, labels = read_data(trainfile)
 df_train, track_train, movements_train = data_reshape(df_train)
+output = open('data.pkl', 'wb')
+pickle.dump(track_train, output)
+print('step 0 ok')
 df_test, id_list = read_data(testfile)
 df_test, track_test, movements_test = data_reshape(df_test)
 print('step 1 ok')
